@@ -6,9 +6,10 @@ import sys
 import threading
 import urllib.parse
 import webbrowser
+from pathlib import Path
+import ssl
 
-
-redirect_uri = "http://localhost:8745/"
+redirect_uri = "https://localhost:7598/"
 
 # We use the cache to extract the refresh token
 cache = SerializableTokenCache()
@@ -46,11 +47,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 code = ''
 
-server_address = ('', 8745)
+server_address = ('', 7598)
 httpd = http.server.HTTPServer(server_address, Handler)
+root = Path(__file__).parent
+keyf, certf = root / "server.key", root / "server.cert"
+assert keyf.exists() and certf.exists()
+httpd.socket = ssl.wrap_socket(
+    httpd.socket,
+    keyfile=keyf,
+    certfile=certf,
+    server_side=True,
+)
 
 # If we are running over ssh then the browser on the local machine
-# would never be able access localhost:8745
+# would never be able access localhost:7598
 if not os.getenv('SSH_CONNECTION'):
     httpd.serve_forever()
 
