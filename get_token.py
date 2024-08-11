@@ -52,10 +52,10 @@ httpd = http.server.HTTPServer(server_address, Handler)
 root = Path(__file__).parent
 keyf, certf = root / "server.key", root / "server.cert"
 assert keyf.exists() and certf.exists()
-httpd.socket = ssl.wrap_socket(
+context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+context.load_cert_chain(certf, keyf)
+httpd.socket = context.wrap_socket(
     httpd.socket,
-    keyfile=keyf,
-    certfile=certf,
     server_side=True,
 )
 
