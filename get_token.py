@@ -73,8 +73,6 @@ if code == '':
 
 token = app.acquire_token_by_authorization_code(code, config.Scopes, redirect_uri=redirect_uri)
 
-print()
-
 if 'error' in token:
     print(token)
     sys.exit("Failed to get access token")
