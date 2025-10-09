@@ -2,7 +2,8 @@
 from msal import ConfidentialClientApplication, SerializableTokenCache
 import sys
 from pathlib import Path
-from platformdirs import user_config_dir, user_cache_dir
+from platformdirs import user_config_dir
+import keyring
 
 print_access_token = True
 
@@ -21,16 +22,15 @@ else:
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
 
-# Set up cache directory for tokens
-cache_dir = Path(user_cache_dir("m365-imap"))
-refresh_token_file = cache_dir / "refresh_token"
-access_token_file = cache_dir / "access_token"
-
 # We use the cache to extract the refresh token
 cache = SerializableTokenCache()
 app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, token_cache=cache, authority=config.Authority)
 
-old_refresh_token = open(refresh_token_file,'r').read()
+# Read refresh token from system keychain
+old_refresh_token = keyring.get_password("m365-imap", "refresh_token")
+if not old_refresh_token:
+    print("Error: No refresh token found in keychain. Run 'get-token' first.", file=sys.stderr)
+    sys.exit(1)
 
 token = app.acquire_token_by_refresh_token(old_refresh_token,config.Scopes)
 
@@ -38,11 +38,9 @@ if 'error' in token:
     print(token)
     sys.exit("Failed to get access token")
 
-# you're supposed to save the old refresh token each time
-with open(refresh_token_file, 'w') as f:
-    f.write(token['refresh_token'])
+# Update refresh token in keychain (tokens are rotated on each use)
+keyring.set_password("m365-imap", "refresh_token", token['refresh_token'])
 
-with open(access_token_file, 'w') as f:
-    f.write(token['access_token'])
-    if print_access_token:
-        print(token['access_token'])
+# Print access token to stdout (for use in passwordeval/PassCmd)
+if print_access_token:
+    print(token['access_token'])
