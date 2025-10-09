@@ -1,0 +1,48 @@
+#!/Users/eidesfun/.venv/bin/python3
+from msal import ConfidentialClientApplication, SerializableTokenCache
+import sys
+from pathlib import Path
+from platformdirs import user_config_dir, user_cache_dir
+
+print_access_token = True
+
+# Load config from XDG config dir, falling back to default config.py
+config_dir = Path(user_config_dir("m365-imap"))
+config_file = config_dir / "config.py"
+
+if not config_file.exists():
+    # Import default config from repo
+    import config as default_config
+    config = default_config
+else:
+    # Load user config
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("config", config_file)
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
+
+# Set up cache directory for tokens
+cache_dir = Path(user_cache_dir("m365-imap"))
+refresh_token_file = cache_dir / "refresh_token"
+access_token_file = cache_dir / "access_token"
+
+# We use the cache to extract the refresh token
+cache = SerializableTokenCache()
+app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, token_cache=cache, authority=config.Authority)
+
+old_refresh_token = open(refresh_token_file,'r').read()
+
+token = app.acquire_token_by_refresh_token(old_refresh_token,config.Scopes)
+
+if 'error' in token:
+    print(token)
+    sys.exit("Failed to get access token")
+
+# you're supposed to save the old refresh token each time
+with open(refresh_token_file, 'w') as f:
+    f.write(token['refresh_token'])
+
+with open(access_token_file, 'w') as f:
+    f.write(token['access_token'])
+    if print_access_token:
+        print(token['access_token'])

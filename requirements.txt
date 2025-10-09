@@ -1,1 +1,3 @@
 msal
+platformdirs
+cryptography
