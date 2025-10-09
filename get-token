@@ -1,0 +1,165 @@
+#!/Users/eidesfun/.venv/bin/python3
+from msal import ConfidentialClientApplication, SerializableTokenCache
+import http.server
+import os
+import sys
+import threading
+import urllib.parse
+import webbrowser
+from pathlib import Path
+import ssl
+from platformdirs import user_config_dir, user_cache_dir
+
+# Load config from XDG config dir, falling back to default config.py
+config_dir = Path(user_config_dir("m365-imap"))
+config_file = config_dir / "config.py"
+
+if not config_file.exists():
+    # Import default config from repo
+    import config as default_config
+    config = default_config
+else:
+    # Load user config
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("config", config_file)
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
+
+# Set up cache directory for tokens and SSL certs
+cache_dir = Path(user_cache_dir("m365-imap"))
+cache_dir.mkdir(parents=True, exist_ok=True)
+refresh_token_file = cache_dir / "refresh_token"
+access_token_file = cache_dir / "access_token"
+
+redirect_uri = "https://localhost:7598/"
+
+# We use the cache to extract the refresh token
+cache = SerializableTokenCache()
+app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, token_cache=cache, authority=config.Authority)
+
+url = app.get_authorization_request_url(config.Scopes, redirect_uri=redirect_uri)
+
+# webbrowser.open may fail silently
+print("Navigate to the following url in a web browser, if doesn't open automatically:")
+print(url)
+try:
+    webbrowser.open(url)
+except Exception:
+    pass
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        parsed_query = urllib.parse.parse_qs(parsed_url.query)
+        global code
+        code = next(iter(parsed_query['code']), '')
+
+        response_body = b'Success. Look back at your terminal.\r\n'
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.send_header('Content-Length', len(response_body))
+        self.end_headers()
+        self.wfile.write(response_body)
+
+        global httpd
+        t = threading.Thread(target=lambda: httpd.shutdown())
+        t.start()
+
+
+code = ''
+
+def generate_self_signed_cert(cert_file, key_file):
+    """Generate a self-signed certificate for localhost"""
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives import serialization
+    import datetime
+    import ipaddress
+
+    # Generate private key
+    key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+
+    # Create certificate
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, u"localhost"),
+    ])
+
+    cert = x509.CertificateBuilder().subject_name(
+        subject
+    ).issuer_name(
+        issuer
+    ).public_key(
+        key.public_key()
+    ).serial_number(
+        x509.random_serial_number()
+    ).not_valid_before(
+        datetime.datetime.now(datetime.UTC)
+    ).not_valid_after(
+        datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=3650)
+    ).add_extension(
+        x509.SubjectAlternativeName([
+            x509.DNSName(u"localhost"),
+            x509.IPAddress(ipaddress.IPv4Address(u"127.0.0.1")),
+        ]),
+        critical=False,
+    ).sign(key, hashes.SHA256())
+
+    # Write private key
+    with open(key_file, "wb") as f:
+        f.write(key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
+
+    # Write certificate
+    with open(cert_file, "wb") as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+
+server_address = ('', 7598)
+httpd = http.server.HTTPServer(server_address, Handler)
+
+# Use self-signed certs from cache dir, generate if missing
+keyf, certf = cache_dir / "server.key", cache_dir / "server.cert"
+if not (keyf.exists() and certf.exists()):
+    print("Generating self-signed certificate for localhost...")
+    generate_self_signed_cert(certf, keyf)
+
+context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+context.load_cert_chain(certf, keyf)
+httpd.socket = context.wrap_socket(
+    httpd.socket,
+    server_side=True,
+)
+
+# If we are running over ssh then the browser on the local machine
+# would never be able access localhost:7598
+if not os.getenv('SSH_CONNECTION'):
+    httpd.serve_forever()
+
+if code == '':
+    print('After login, you will be redirected to a blank (or error) page with a url containing an access code. Paste the url below.')
+    resp = input('Response url: ')
+
+    i = resp.find('code') + 5
+    code = resp[i : resp.find('&', i)] if i > 4 else resp
+
+token = app.acquire_token_by_authorization_code(code, config.Scopes, redirect_uri=redirect_uri)
+
+if 'error' in token:
+    print(token)
+    sys.exit("Failed to get access token")
+
+with open(refresh_token_file, 'w') as f:
+    print(f'Refresh token acquired, writing to file {refresh_token_file}')
+    f.write(token['refresh_token'])
+
+with open(access_token_file, 'w') as f:
+    print(f'Access token acquired, writing to file {access_token_file}')
+    f.write(token['access_token'])
