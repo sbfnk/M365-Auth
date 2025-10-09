@@ -9,6 +9,7 @@ import webbrowser
 from pathlib import Path
 import ssl
 from platformdirs import user_config_dir, user_cache_dir
+import keyring
 
 # Load config from XDG config dir, falling back to default config.py
 config_dir = Path(user_config_dir("m365-imap"))
@@ -25,11 +26,9 @@ else:
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
 
-# Set up cache directory for tokens and SSL certs
+# Set up cache directory for SSL certs
 cache_dir = Path(user_cache_dir("m365-imap"))
 cache_dir.mkdir(parents=True, exist_ok=True)
-refresh_token_file = cache_dir / "refresh_token"
-access_token_file = cache_dir / "access_token"
 
 redirect_uri = "https://localhost:7598/"
 
@@ -156,10 +155,9 @@ if 'error' in token:
     print(token)
     sys.exit("Failed to get access token")
 
-with open(refresh_token_file, 'w') as f:
-    print(f'Refresh token acquired, writing to file {refresh_token_file}')
-    f.write(token['refresh_token'])
+# Store refresh token in system keychain
+keyring.set_password("m365-imap", "refresh_token", token['refresh_token'])
+print('Refresh token acquired and stored in system keychain')
 
-with open(access_token_file, 'w') as f:
-    print(f'Access token acquired, writing to file {access_token_file}')
-    f.write(token['access_token'])
+# Print access token (don't persist to disk for security)
+print(f'\nAccess token (valid for ~1 hour):\n{token["access_token"]}')
