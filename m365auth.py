@@ -16,21 +16,72 @@ import keyring
 from msal import ConfidentialClientApplication, SerializableTokenCache
 
 
+# Default configuration (used if no user config exists)
+DEFAULT_CONFIG = {
+    'ClientId': '9e5f94bc-e8a4-4e73-b8be-63364c29d753',  # Thunderbird's client ID
+    'ClientSecret': '',
+    'Authority': None,
+    'Profiles': {
+        'mail': {
+            'scopes': [
+                'https://outlook.office.com/IMAP.AccessAsUser.All',
+                'https://outlook.office.com/SMTP.Send'
+            ]
+        },
+        'calendar': {
+            'scopes': [
+                'https://graph.microsoft.com/Calendars.ReadWrite'
+            ]
+        }
+    }
+}
+
+
 def load_config(profile='mail'):
-    """Load config from XDG config dir, falling back to default config.py"""
+    """Load config from XDG config dir, creating default if needed"""
     config_dir = Path(user_config_dir("m365auth"))
     config_file = config_dir / "config.py"
 
     if not config_file.exists():
-        # Import default config from repo
-        import config as default_config
-        config = default_config
-    else:
-        # Load user config
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("config", config_file)
-        config = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(config)
+        # Create config directory and write default config
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_content = """# M365 OAuth2 Configuration
+# Thunderbird's public client ID (works for personal Microsoft accounts)
+ClientId = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
+
+# Client secret (can be empty for public clients like mail clients)
+ClientSecret = ""
+
+# Authority URL (None = multi-tenant, or specify tenant-specific URL)
+Authority = None
+
+# Profiles with different scope sets
+Profiles = {
+    'mail': {
+        'scopes': [
+            'https://outlook.office.com/IMAP.AccessAsUser.All',
+            'https://outlook.office.com/SMTP.Send'
+        ]
+    },
+    'calendar': {
+        'scopes': [
+            'https://graph.microsoft.com/Calendars.ReadWrite'
+        ]
+    }
+}
+
+# Default scopes (for backwards compatibility)
+Scopes = Profiles['mail']['scopes']
+"""
+        config_file.write_text(config_content)
+        print(f"Created default config at {config_file}")
+        print("You can edit this file to customize settings.\n")
+
+    # Load user config
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("config", config_file)
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
 
     # Get scopes for the selected profile
     if hasattr(config, 'Profiles') and profile in config.Profiles:
