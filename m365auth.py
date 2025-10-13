@@ -249,10 +249,23 @@ def main_get_token():
 
     if code == '':
         print('After login, you will be redirected to a blank (or error) page with a url containing an access code. Paste the url below.')
-        resp = input('Response url: ')
+        print('Response url: ', end='', flush=True)
+        resp = sys.stdin.readline().strip()
 
-        i = resp.find('code') + 5
-        code = resp[i : resp.find('&', i)] if i > 4 else resp
+        # Parse the code from the URL
+        parsed = urllib.parse.urlparse(resp)
+        query_params = urllib.parse.parse_qs(parsed.query)
+        if 'code' in query_params:
+            code = query_params['code'][0]
+        else:
+            # Fallback to simple string parsing
+            i = resp.find('code=')
+            if i >= 0:
+                i += 5
+                end = resp.find('&', i)
+                code = resp[i:end] if end > 0 else resp[i:]
+            else:
+                code = resp
 
     token = app.acquire_token_by_authorization_code(code, scopes, redirect_uri=redirect_uri)
 
