@@ -292,12 +292,22 @@ def main_get_token():
 
     url = app.get_authorization_request_url(scopes, redirect_uri=redirect_uri)
 
-    # webbrowser.open may fail on headless systems - suppress errors
-    if args.verbose:
-        print("Navigate to the following url in a web browser, if doesn't open automatically:")
+    # Always show URL for headless/SSH scenarios, or if verbose
+    if os.getenv('SSH_CONNECTION') and not args.server:
+        # SSH without tunnel - user will need manual URL entry
+        print("Authenticate in your browser with this URL:")
+        print(url)
+        print()
+    elif args.verbose:
+        print("Navigate to the following URL in a web browser:")
         print(url)
     else:
+        # Local machine - show condensed message and URL
         print("Opening browser for authentication...")
+        print(f"If the browser doesn't open, navigate to: {url}")
+        print()
+
+    # Try to open browser (may fail or open wrong browser on headless)
     try:
         # Redirect stderr to suppress browser errors on headless systems
         import subprocess
