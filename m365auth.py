@@ -269,6 +269,8 @@ def main_get_token():
                         help='Profile to use for scopes (default: mail). Available: mail, calendar')
     parser.add_argument('--verbose', action='store_true',
                         help='Show detailed output including access token')
+    parser.add_argument('--browser', type=str, default='auto', choices=['auto', 'always', 'never'],
+                        help='Browser opening behavior: auto (default, skip on SSH), always (force open), never (never open)')
     args = parser.parse_args()
 
     # Load config and get scopes
@@ -307,20 +309,30 @@ def main_get_token():
         print(f"If the browser doesn't open, navigate to: {url}")
         print()
 
-    # Try to open browser (may fail or open wrong browser on headless)
-    try:
-        # Redirect stderr to suppress browser errors on headless systems
-        import subprocess
-        old_stderr = os.dup(2)
-        os.close(2)
-        os.open(os.devnull, os.O_RDWR)
+    # Determine whether to open browser based on --browser flag
+    should_open_browser = False
+    if args.browser == 'always':
+        should_open_browser = True
+    elif args.browser == 'never':
+        should_open_browser = False
+    else:  # auto
+        # Auto mode: open browser unless on SSH (or if using SSH tunnel with --server)
+        should_open_browser = not os.getenv('SSH_CONNECTION') or args.server
+
+    if should_open_browser:
         try:
-            webbrowser.open(url)
-        finally:
-            os.dup2(old_stderr, 2)
-            os.close(old_stderr)
-    except Exception:
-        pass
+            # Redirect stderr to suppress browser errors on headless systems
+            import subprocess
+            old_stderr = os.dup(2)
+            os.close(2)
+            os.open(os.devnull, os.O_RDWR)
+            try:
+                webbrowser.open(url)
+            finally:
+                os.dup2(old_stderr, 2)
+                os.close(old_stderr)
+        except Exception:
+            pass
 
     # Use a list to capture code (mutable, so handler can modify it)
     code_container = ['']
