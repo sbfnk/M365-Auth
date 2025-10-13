@@ -306,12 +306,16 @@ def main_get_token():
     except Exception:
         pass
 
+    # Use a list to capture code (mutable, so handler can modify it)
+    code_container = ['']
+    httpd = None  # Forward declaration for handler
+
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             parsed_url = urllib.parse.urlparse(self.path)
             parsed_query = urllib.parse.parse_qs(parsed_url.query)
-            global code
-            code = next(iter(parsed_query['code']), '')
+            if 'code' in parsed_query:
+                code_container[0] = parsed_query['code'][0]
 
             response_body = b'Success. Look back at your terminal.\r\n'
             self.send_response(200)
@@ -320,11 +324,8 @@ def main_get_token():
             self.end_headers()
             self.wfile.write(response_body)
 
-            global httpd
-            t = threading.Thread(target=lambda: httpd.shutdown())
+            t = threading.Thread(target=httpd.shutdown)
             t.start()
-
-    code = ''
 
     server_address = ('', 7598)
     httpd = http.server.HTTPServer(server_address, Handler)
@@ -346,6 +347,8 @@ def main_get_token():
     # would never be able access localhost:7598 (unless using SSH tunnel with --server flag)
     if not os.getenv('SSH_CONNECTION') or args.server:
         httpd.serve_forever()
+
+    code = code_container[0]
 
     if code == '':
         print('')
