@@ -285,11 +285,20 @@ def main_get_token():
 
     url = app.get_authorization_request_url(scopes, redirect_uri=redirect_uri)
 
-    # webbrowser.open may fail silently
+    # webbrowser.open may fail on headless systems - suppress errors
     print("Navigate to the following url in a web browser, if doesn't open automatically:")
     print(url)
     try:
-        webbrowser.open(url)
+        # Redirect stderr to suppress browser errors on headless systems
+        import subprocess
+        old_stderr = os.dup(2)
+        os.close(2)
+        os.open(os.devnull, os.O_RDWR)
+        try:
+            webbrowser.open(url)
+        finally:
+            os.dup2(old_stderr, 2)
+            os.close(old_stderr)
     except Exception:
         pass
 
