@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_system"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "m365auth"
@@ -19,3 +19,6 @@ dependencies = [
 get-token = "m365auth:main_get_token"
 refresh-token = "m365auth:main_refresh_token"
 get-refresh-token = "m365auth:main_get_refresh_token"
+
+[tool.setuptools]
+py-modules = ["m365auth"]
