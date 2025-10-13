@@ -16,25 +16,6 @@ import keyring
 from msal import ConfidentialClientApplication, SerializableTokenCache
 
 
-# Default configuration (used if no user config exists)
-DEFAULT_CONFIG = {
-    'ClientId': '9e5f94bc-e8a4-4e73-b8be-63364c29d753',  # Thunderbird's client ID
-    'ClientSecret': '',
-    'Authority': None,
-    'Profiles': {
-        'mail': {
-            'scopes': [
-                'https://outlook.office.com/IMAP.AccessAsUser.All',
-                'https://outlook.office.com/SMTP.Send'
-            ]
-        },
-        'calendar': {
-            'scopes': [
-                'https://graph.microsoft.com/Calendars.ReadWrite'
-            ]
-        }
-    }
-}
 
 
 def load_config(profile='mail'):
@@ -43,45 +24,100 @@ def load_config(profile='mail'):
     config_file = config_dir / "config.py"
 
     if not config_file.exists():
-        # Create config directory and write default config
+        # Interactive first-run setup
+        print("=" * 70)
+        print("M365-Auth First Run Setup")
+        print("=" * 70)
+        print()
+        print("You need an Azure AD app registration client ID to authenticate.")
+        print()
+        print("Options:")
+        print("  1. Create your own app registration (recommended)")
+        print("     - Full control over permissions")
+        print("     - See README.md for step-by-step instructions")
+        print()
+        print("  2. Use a public client ID from an existing application")
+        print("     - May not have all permissions you need")
+        print("     - See README.md for how to find one")
+        print()
+        print("For detailed instructions, see:")
+        print("  https://github.com/sbfnk/M365-Auth#step-1-get-a-client-id")
+        print()
+
+        client_id = input("Enter your Azure AD client ID: ").strip()
+
+        if not client_id or client_id == "YOUR_CLIENT_ID_HERE":
+            print()
+            print("Error: You must provide a valid client ID.")
+            print("Please read the README.md for instructions on obtaining one.")
+            sys.exit(1)
+
+        print()
+        print("Client secret (optional):")
+        print("  - For public clients (mail apps), leave empty")
+        print("  - For confidential clients, enter your secret")
+        client_secret = input("Enter client secret (or press Enter to skip): ").strip()
+
+        print()
+        print("Authority URL (optional):")
+        print("  - Leave empty for multi-tenant (works with any account)")
+        print("  - Or enter: https://login.microsoftonline.com/YOUR-TENANT-ID/")
+        authority = input("Enter authority URL (or press Enter to skip): ").strip()
+        if not authority:
+            authority = "None"
+        else:
+            authority = f'"{authority}"'
+
+        # Create config directory and write config
         config_dir.mkdir(parents=True, exist_ok=True)
-        config_content = """# M365 OAuth2 Configuration
-# Thunderbird's public client ID (works for personal Microsoft accounts)
-ClientId = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
+        config_content = f"""# M365 OAuth2 Configuration
+# This file was auto-generated. You can edit it to customize settings.
 
-# Client secret (can be empty for public clients like mail clients)
-ClientSecret = ""
+# Azure AD app registration client ID
+ClientId = "{client_id}"
 
-# Authority URL (None = multi-tenant, or specify tenant-specific URL)
-Authority = None
+# Client secret (empty for public clients like mail clients)
+ClientSecret = "{client_secret}"
+
+# Authority URL (None = multi-tenant)
+Authority = {authority}
 
 # Profiles with different scope sets
-Profiles = {
-    'mail': {
+# You can add more profiles or customize existing ones
+Profiles = {{
+    'mail': {{
         'scopes': [
             'https://outlook.office.com/IMAP.AccessAsUser.All',
             'https://outlook.office.com/SMTP.Send'
         ]
-    },
-    'calendar': {
+    }},
+    'calendar': {{
         'scopes': [
             'https://graph.microsoft.com/Calendars.ReadWrite'
         ]
-    }
-}
+    }}
+}}
 
 # Default scopes (for backwards compatibility)
 Scopes = Profiles['mail']['scopes']
 """
         config_file.write_text(config_content)
-        print(f"Created default config at {config_file}")
-        print("You can edit this file to customize settings.\n")
+        print()
+        print(f"✓ Configuration saved to: {config_file}")
+        print("  You can edit this file anytime to change settings.")
+        print()
 
     # Load user config
     import importlib.util
     spec = importlib.util.spec_from_file_location("config", config_file)
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
+
+    # Validate client ID
+    if not hasattr(config, 'ClientId') or config.ClientId == "YOUR_CLIENT_ID_HERE":
+        print(f"Error: Invalid client ID in {config_file}")
+        print("Please edit the file and set a valid ClientId.")
+        sys.exit(1)
 
     # Get scopes for the selected profile
     if hasattr(config, 'Profiles') and profile in config.Profiles:

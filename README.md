@@ -55,34 +55,40 @@ This gives you full control and ensures you have all the permissions you need:
 
 #### Option 2: Use a public client ID
 
-Some applications publish their client IDs, which you can use:
+Some applications publish their client IDs in their source code, which you can use. For example:
 
-- **Thunderbird**: `9e5f94bc-e8a4-4e73-b8be-63364c29d753` (default in this tool)
-  - Available from [Thunderbird's source code](https://hg-edge.mozilla.org/comm-central/file/tip/mailnews/base/src/OAuth2Providers.sys.mjs)
-  - Works for personal Microsoft accounts
-  - May or may not have the specific permissions you need (depends on what's granted in your tenant)
+- **Thunderbird**: Available in their [source code](https://hg-edge.mozilla.org/comm-central/file/tip/mailnews/base/src/OAuth2Providers.sys.mjs)
+- **Other mail clients**: Check their public repositories or documentation
+
+To find a public client ID:
+1. Look in the application's source code repository
+2. Search for files related to OAuth2 or Microsoft authentication
+3. Look for strings that match the format of Azure AD client IDs (typically 36-character GUIDs)
 
 **Pros of using public client IDs:**
 - No need to create your own app registration
-- Often already approved by IT departments
+- Often already approved by IT departments for common applications
 - Works immediately for personal accounts
 
 **Cons:**
 - You don't control the permissions
 - May not have calendar or other non-mail permissions
 - Could theoretically be revoked by the original publisher
+- You're using an ID intended for a different application
 
 Whatever client ID you use, it needs to have been granted the appropriate permissions in your M365 tenant (for work/school accounts) or support the permissions you need (for personal accounts).
 
 ### Step 2: Configure
 
-Optionally customize the config:
+On first run, `get-token` will automatically create a default configuration file at `~/.config/m365auth/config.py`. You must edit this file to add your client ID:
 
 ```bash
-mkdir -p ~/.config/m365auth
-cp config.py ~/.config/m365auth/
-# Edit ~/.config/m365auth/config.py with your Client ID
+# The config file will be created automatically on first run
+# Edit it to add your client ID
+nano ~/.config/m365auth/config.py
 ```
+
+Set `ClientId = "your-client-id-here"` in the config file.
 
 The default config includes two profiles:
 - **mail**: `IMAP.AccessAsUser.All`, `SMTP.Send`
@@ -334,4 +340,3 @@ MIT License - see original [M365-IMAP](https://github.com/UvA-FNWI/M365-IMAP) re
 
 - Original implementation: [Gerrit Oomens](https://github.com/UvA-FNWI/M365-IMAP)
 - Earlier fork: [ag91/M365-IMAP](https://github.com/ag91/M365-IMAP)
-- Extensions for multi-service support, profiles, and keychain storage: Sebastian Funk
