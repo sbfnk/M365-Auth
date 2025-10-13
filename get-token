@@ -1,4 +1,4 @@
-#!/Users/eidesfun/.venv/bin/python3
+#!/usr/bin/env python3
 from msal import ConfidentialClientApplication, SerializableTokenCache
 import http.server
 import os
@@ -10,6 +10,15 @@ from pathlib import Path
 import ssl
 from platformdirs import user_config_dir, user_cache_dir
 import keyring
+import argparse
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Get OAuth2 token for M365 services')
+parser.add_argument('--server', action='store_true',
+                    help='Force server mode even over SSH (for use with SSH tunnel)')
+parser.add_argument('--profile', type=str, default='mail',
+                    help='Profile to use for scopes (default: mail). Available: mail, calendar')
+args = parser.parse_args()
 
 # Load config from XDG config dir, falling back to default config.py
 config_dir = Path(user_config_dir("m365-imap"))
@@ -26,9 +35,23 @@ else:
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
 
+# Get scopes for the selected profile
+if hasattr(config, 'Profiles') and args.profile in config.Profiles:
+    scopes = config.Profiles[args.profile]['scopes']
+    print(f"Using profile: {args.profile}")
+elif hasattr(config, 'Scopes'):
+    scopes = config.Scopes
+    print(f"Using default scopes (no profile specified or profile not found)")
+else:
+    print(f"Error: No scopes found in config for profile '{args.profile}'")
+    sys.exit(1)
+
 # Set up cache directory for SSL certs
 cache_dir = Path(user_cache_dir("m365-imap"))
 cache_dir.mkdir(parents=True, exist_ok=True)
+
+# Use profile name in keychain service name to keep tokens separate
+keychain_service = f"m365-imap-{args.profile}"
 
 redirect_uri = "https://localhost:7598/"
 
@@ -36,7 +59,7 @@ redirect_uri = "https://localhost:7598/"
 cache = SerializableTokenCache()
 app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, token_cache=cache, authority=config.Authority)
 
-url = app.get_authorization_request_url(config.Scopes, redirect_uri=redirect_uri)
+url = app.get_authorization_request_url(scopes, redirect_uri=redirect_uri)
 
 # webbrowser.open may fail silently
 print("Navigate to the following url in a web browser, if doesn't open automatically:")
@@ -138,8 +161,8 @@ httpd.socket = context.wrap_socket(
 )
 
 # If we are running over ssh then the browser on the local machine
-# would never be able access localhost:7598
-if not os.getenv('SSH_CONNECTION'):
+# would never be able access localhost:7598 (unless using SSH tunnel with --server flag)
+if not os.getenv('SSH_CONNECTION') or args.server:
     httpd.serve_forever()
 
 if code == '':
@@ -149,15 +172,22 @@ if code == '':
     i = resp.find('code') + 5
     code = resp[i : resp.find('&', i)] if i > 4 else resp
 
-token = app.acquire_token_by_authorization_code(code, config.Scopes, redirect_uri=redirect_uri)
+token = app.acquire_token_by_authorization_code(code, scopes, redirect_uri=redirect_uri)
 
 if 'error' in token:
     print(token)
     sys.exit("Failed to get access token")
 
-# Store refresh token in system keychain
-keyring.set_password("m365-imap", "refresh_token", token['refresh_token'])
-print('Refresh token acquired and stored in system keychain')
+# Store refresh token in system keychain (with file fallback for headless)
+try:
+    keyring.set_password(keychain_service, "refresh_token", token['refresh_token'])
+    print(f'Refresh token acquired and stored in system keychain ({keychain_service})')
+except Exception as e:
+    print(f'⚠️  Could not store in keychain ({e}), falling back to file storage')
+    token_file = cache_dir / f"refresh_token_{args.profile}"
+    token_file.write_text(token['refresh_token'])
+    token_file.chmod(0o600)  # Read/write for owner only
+    print(f'Refresh token stored in {token_file} (mode 600)')
 
 # Print access token (don't persist to disk for security)
 print(f'\nAccess token (valid for ~1 hour):\n{token["access_token"]}')

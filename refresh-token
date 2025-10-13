@@ -1,9 +1,16 @@
-#!/Users/eidesfun/.venv/bin/python3
+#!/usr/bin/env python3
 from msal import ConfidentialClientApplication, SerializableTokenCache
 import sys
 from pathlib import Path
-from platformdirs import user_config_dir
+from platformdirs import user_config_dir, user_cache_dir
 import keyring
+import argparse
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Refresh OAuth2 token for M365 services')
+parser.add_argument('--profile', type=str, default='mail',
+                    help='Profile to use for scopes (default: mail). Available: mail, calendar')
+args = parser.parse_args()
 
 print_access_token = True
 
@@ -22,24 +29,56 @@ else:
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
 
+# Get scopes for the selected profile
+if hasattr(config, 'Profiles') and args.profile in config.Profiles:
+    scopes = config.Profiles[args.profile]['scopes']
+elif hasattr(config, 'Scopes'):
+    scopes = config.Scopes
+else:
+    print(f"Error: No scopes found in config for profile '{args.profile}'", file=sys.stderr)
+    sys.exit(1)
+
+# Use profile name in keychain service name to keep tokens separate
+keychain_service = f"m365-imap-{args.profile}"
+
 # We use the cache to extract the refresh token
 cache = SerializableTokenCache()
 app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, token_cache=cache, authority=config.Authority)
 
-# Read refresh token from system keychain
-old_refresh_token = keyring.get_password("m365-imap", "refresh_token")
+# Read refresh token from system keychain (with file fallback for headless)
+old_refresh_token = None
+try:
+    old_refresh_token = keyring.get_password(keychain_service, "refresh_token")
+except Exception:
+    pass
+
 if not old_refresh_token:
-    print("Error: No refresh token found in keychain. Run 'get-token' first.", file=sys.stderr)
+    # Try file fallback
+    cache_dir = Path(user_cache_dir("m365-imap"))
+    token_file = cache_dir / f"refresh_token_{args.profile}"
+    if token_file.exists():
+        old_refresh_token = token_file.read_text().strip()
+
+if not old_refresh_token:
+    print(f"Error: No refresh token found in keychain or file for profile '{args.profile}'. Run 'get-token --profile {args.profile}' first.", file=sys.stderr)
     sys.exit(1)
 
-token = app.acquire_token_by_refresh_token(old_refresh_token,config.Scopes)
+token = app.acquire_token_by_refresh_token(old_refresh_token, scopes)
 
 if 'error' in token:
     print(token)
     sys.exit("Failed to get access token")
 
 # Update refresh token in keychain (tokens are rotated on each use)
-keyring.set_password("m365-imap", "refresh_token", token['refresh_token'])
+# Try keychain first, fall back to file if it fails
+try:
+    keyring.set_password(keychain_service, "refresh_token", token['refresh_token'])
+except Exception:
+    # Fall back to file storage
+    cache_dir = Path(user_cache_dir("m365-imap"))
+    token_file = cache_dir / f"refresh_token_{args.profile}"
+    token_file.write_text(token['refresh_token'])
+    token_file.chmod(0o600)
 
 # Print access token to stdout (for use in passwordeval/PassCmd)
 if print_access_token:
