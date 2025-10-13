@@ -16,13 +16,48 @@ A Python-based OAuth2 authentication tool for Microsoft 365 services including I
 
 ## Installation
 
+### Option 1: Using pipx (Recommended)
+
+[pipx](https://pipx.pypa.io/) installs Python CLI tools in isolated environments while making them globally available:
+
+```bash
+# Install pipx if you don't have it
+brew install pipx  # macOS
+# or: python3 -m pip install --user pipx
+
+# Ensure pipx is in PATH
+pipx ensurepath
+
+# Install M365-Auth
+git clone https://github.com/YOUR-USERNAME/M365-Auth
+cd M365-Auth
+pipx install .
+```
+
+### Option 2: System-wide installation
+
+```bash
+git clone https://github.com/YOUR-USERNAME/M365-Auth
+cd M365-Auth
+pip3 install --user .
+# Or without --user for system-wide (may require sudo)
+```
+
+### Option 3: Development installation
+
+For development or if you want to modify the code:
+
 ```bash
 git clone https://github.com/YOUR-USERNAME/M365-Auth
 cd M365-Auth
 pip install -e .
 ```
 
-This installs the package and creates three commands:
+**Note**: With development installation in a virtual environment, you'll need to either activate the venv or use full paths (e.g., `/path/to/venv/bin/refresh-token`) in your mail client configurations.
+
+### Commands installed
+
+All installation methods create three commands:
 - `get-token` - Interactive OAuth2 flow to obtain tokens
 - `refresh-token` - Refresh and print access tokens
 - `get-refresh-token` - Get refresh token from keychain (for OfflineIMAP)
