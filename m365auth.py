@@ -267,11 +267,14 @@ def main_get_token():
                         help='Force server mode even over SSH (for use with SSH tunnel)')
     parser.add_argument('--profile', type=str, default='mail',
                         help='Profile to use for scopes (default: mail). Available: mail, calendar')
+    parser.add_argument('--verbose', action='store_true',
+                        help='Show detailed output including access token')
     args = parser.parse_args()
 
     # Load config and get scopes
     config, scopes = load_config(args.profile)
-    print(f"Using profile: {args.profile}")
+    if args.verbose:
+        print(f"Using profile: {args.profile}")
 
     # Set up cache directory for SSL certs
     cache_dir = Path(user_cache_dir("m365auth"))
@@ -290,8 +293,11 @@ def main_get_token():
     url = app.get_authorization_request_url(scopes, redirect_uri=redirect_uri)
 
     # webbrowser.open may fail on headless systems - suppress errors
-    print("Navigate to the following url in a web browser, if doesn't open automatically:")
-    print(url)
+    if args.verbose:
+        print("Navigate to the following url in a web browser, if doesn't open automatically:")
+        print(url)
+    else:
+        print("Opening browser for authentication...")
     try:
         # Redirect stderr to suppress browser errors on headless systems
         import subprocess
@@ -311,6 +317,12 @@ def main_get_token():
     httpd = None  # Forward declaration for handler
 
     class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, format, *log_args):
+            # Suppress HTTP server logs unless verbose mode
+            # Access the outer args via closure
+            if args.verbose:
+                super().log_message(format, *log_args)
+
         def do_GET(self):
             parsed_url = urllib.parse.urlparse(self.path)
             parsed_query = urllib.parse.parse_qs(parsed_url.query)
@@ -333,7 +345,8 @@ def main_get_token():
     # Use self-signed certs from cache dir, generate if missing
     keyf, certf = cache_dir / "server.key", cache_dir / "server.cert"
     if not (keyf.exists() and certf.exists()):
-        print("Generating self-signed certificate for localhost...")
+        if args.verbose:
+            print("Generating self-signed certificate for localhost...")
         generate_self_signed_cert(certf, keyf)
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -382,16 +395,28 @@ def main_get_token():
     # Store refresh token in system keychain (with file fallback for headless)
     try:
         keyring.set_password(keychain_service, "refresh_token", token['refresh_token'])
-        print(f'Refresh token acquired and stored in system keychain ({keychain_service})')
+        if args.verbose:
+            print(f'Refresh token stored in system keychain ({keychain_service})')
+        else:
+            print(f'✓ Authentication successful!')
+            print(f'  Refresh token stored in system keychain')
+            print(f'  Profile: {args.profile}')
     except Exception as e:
-        print(f'⚠️  Could not store in keychain ({e}), falling back to file storage')
+        if args.verbose:
+            print(f'⚠️  Could not store in keychain ({e}), falling back to file storage')
         token_file = cache_dir / f"refresh_token_{args.profile}"
         token_file.write_text(token['refresh_token'])
         token_file.chmod(0o600)  # Read/write for owner only
-        print(f'Refresh token stored in {token_file} (mode 600)')
+        if args.verbose:
+            print(f'Refresh token stored in {token_file} (mode 600)')
+        else:
+            print(f'✓ Authentication successful!')
+            print(f'  Refresh token stored in {token_file}')
+            print(f'  Profile: {args.profile}')
 
-    # Print access token (don't persist to disk for security)
-    print(f'\nAccess token (valid for ~1 hour):\n{token["access_token"]}')
+    # Print access token only in verbose mode
+    if args.verbose:
+        print(f'\nAccess token (valid for ~1 hour):\n{token["access_token"]}')
 
 
 def main_refresh_token():
