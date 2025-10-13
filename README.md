@@ -57,7 +57,7 @@ This gives you full control and ensures you have all the permissions you need:
 
 Some applications publish their client IDs in their source code, which you can use. For example:
 
-- **Thunderbird**: Available in their [source code](https://hg-edge.mozilla.org/comm-central/file/tip/mailnews/base/src/OAuth2Providers.sys.mjs)
+- **Thunderbird**: Available in their [source code](https://hg-edge.mozilla.org/comm-central/file/tip/mailnews/base/src/OAuth2Providers.sys.mjs#l186)
 - **Other mail clients**: Check their public repositories or documentation
 
 To find a public client ID:

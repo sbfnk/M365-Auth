@@ -104,7 +104,11 @@ Scopes = Profiles['mail']['scopes']
         config_file.write_text(config_content)
         print()
         print(f"✓ Configuration saved to: {config_file}")
-        print("  You can edit this file anytime to change settings.")
+        print()
+        print("  You can edit this file anytime to:")
+        print("    - Change your client ID")
+        print("    - Update client secret or authority URL")
+        print("    - Add custom profiles with different scopes")
         print()
 
     # Load user config
@@ -344,9 +348,18 @@ def main_get_token():
         httpd.serve_forever()
 
     if code == '':
-        print('After login, you will be redirected to a blank (or error) page with a url containing an access code. Paste the url below.')
-        print('Response url: ', end='', flush=True)
-        resp = sys.stdin.readline().strip()
+        print('')
+        print('After login, you will be redirected to a blank (or error) page.')
+        print('The URL will be very long (too long to paste in the terminal).')
+        print('Save the full URL to a file, then provide the file path below.')
+        print('Example: Copy the URL from your browser, then:')
+        print('         pbpaste > /tmp/oauth-response.txt  (macOS)')
+        print('         or paste into a text editor and save')
+        print('')
+        file_path = input('File path: ').strip()
+
+        with open(file_path, 'r') as f:
+            resp = f.read().strip()
 
         # Parse the code from the URL
         parsed = urllib.parse.urlparse(resp)
@@ -354,14 +367,8 @@ def main_get_token():
         if 'code' in query_params:
             code = query_params['code'][0]
         else:
-            # Fallback to simple string parsing
-            i = resp.find('code=')
-            if i >= 0:
-                i += 5
-                end = resp.find('&', i)
-                code = resp[i:end] if end > 0 else resp[i:]
-            else:
-                code = resp
+            print("Error: Could not find 'code' parameter in URL")
+            sys.exit(1)
 
     token = app.acquire_token_by_authorization_code(code, scopes, redirect_uri=redirect_uri)
 
