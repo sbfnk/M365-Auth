@@ -2,3 +2,9 @@ __pycache__
 refresh_token
 imap_smtp_refresh_token
 imap_smtp_access_token
+
+# Python packaging artifacts
+dist/
+build/
+*.egg-info/
+*.egg

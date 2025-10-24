@@ -11,6 +11,12 @@ ClientSecret = ""
 # Authority = "https://login.microsoftonline.com/XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX/"
 Authority = None
 
+# OAuth2 redirect URI configuration
+# This must match what's configured in your Azure app registration
+RedirectUri = "https://localhost:7598/"
+RedirectPort = 7598
+UseHttps = True  # Set to False to use HTTP instead of HTTPS
+
 # Profile-based scopes - use with --profile argument
 # Azure AD doesn't allow mixing scopes from different resources in one token
 Profiles = {

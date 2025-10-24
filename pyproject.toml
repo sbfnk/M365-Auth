@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "m365auth"
-version = "0.1.0"
+version = "0.2.2"
 description = "OAuth2 authentication for Microsoft 365 services (IMAP/SMTP/Calendar/etc)"
 readme = "README.md"
 requires-python = ">=3.6"
@@ -15,10 +15,10 @@ dependencies = [
     "keyring",
 ]
 
+[tool.setuptools]
+py-modules = ["m365auth"]
+
 [project.scripts]
 get-token = "m365auth:main_get_token"
 refresh-token = "m365auth:main_refresh_token"
 get-refresh-token = "m365auth:main_get_refresh_token"
-
-[tool.setuptools]
-py-modules = ["m365auth"]

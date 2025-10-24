@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from msal import ConfidentialClientApplication, SerializableTokenCache
+from msal import ConfidentialClientApplication, PublicClientApplication, SerializableTokenCache
 import sys
 from pathlib import Path
 from platformdirs import user_config_dir, user_cache_dir
@@ -43,7 +43,12 @@ keychain_service = f"m365-imap-{args.profile}"
 
 # We use the cache to extract the refresh token
 cache = SerializableTokenCache()
-app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, token_cache=cache, authority=config.Authority)
+
+# Use PublicClientApplication if no client secret, otherwise ConfidentialClientApplication
+if not config.ClientSecret or config.ClientSecret == "":
+    app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority)
+else:
+    app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, token_cache=cache, authority=config.Authority)
 
 # Read refresh token from system keychain (with file fallback for headless)
 old_refresh_token = None

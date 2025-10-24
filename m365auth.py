@@ -13,7 +13,7 @@ import http.server
 from pathlib import Path
 from platformdirs import user_config_dir, user_cache_dir
 import keyring
-from msal import ConfidentialClientApplication, SerializableTokenCache
+from msal import ConfidentialClientApplication, PublicClientApplication, SerializableTokenCache
 
 
 
@@ -187,12 +187,17 @@ def get_access_token(profile='mail'):
 
     # Get new access token using MSAL
     cache = SerializableTokenCache()
-    app = ConfidentialClientApplication(
-        config.ClientId,
-        client_credential=config.ClientSecret,
-        token_cache=cache,
-        authority=config.Authority
-    )
+
+    # Use PublicClientApplication if no client secret, otherwise ConfidentialClientApplication
+    if not config.ClientSecret or config.ClientSecret == "":
+        app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority)
+    else:
+        app = ConfidentialClientApplication(
+            config.ClientId,
+            client_credential=config.ClientSecret,
+            token_cache=cache,
+            authority=config.Authority
+        )
 
     token = app.acquire_token_by_refresh_token(old_refresh_token, scopes)
 
@@ -285,12 +290,20 @@ def main_get_token():
     # Use profile name in keychain service name to keep tokens separate
     keychain_service = f"m365auth-{args.profile}"
 
-    redirect_uri = "https://localhost:7598/"
+    # Get redirect URI from config (with fallback for backward compatibility)
+    redirect_uri = getattr(config, 'RedirectUri', "https://localhost:7598/")
+    redirect_port = getattr(config, 'RedirectPort', 7598)
+    use_https = getattr(config, 'UseHttps', True)
 
     # We use the cache to extract the refresh token
     cache = SerializableTokenCache()
-    app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, 
-                                        token_cache=cache, authority=config.Authority)
+
+    # Use PublicClientApplication if no client secret, otherwise ConfidentialClientApplication
+    if not config.ClientSecret or config.ClientSecret == "":
+        app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority)
+    else:
+        app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret,
+                                            token_cache=cache, authority=config.Authority)
 
     url = app.get_authorization_request_url(scopes, redirect_uri=redirect_uri)
 
@@ -361,22 +374,23 @@ def main_get_token():
             t = threading.Thread(target=httpd.shutdown)
             t.start()
 
-    server_address = ('', 7598)
+    server_address = ('', redirect_port)
     httpd = http.server.HTTPServer(server_address, Handler)
 
-    # Use self-signed certs from cache dir, generate if missing
-    keyf, certf = cache_dir / "server.key", cache_dir / "server.cert"
-    if not (keyf.exists() and certf.exists()):
-        if args.verbose:
-            print("Generating self-signed certificate for localhost...")
-        generate_self_signed_cert(certf, keyf)
+    # Use self-signed certs from cache dir if HTTPS is enabled
+    if use_https:
+        keyf, certf = cache_dir / "server.key", cache_dir / "server.cert"
+        if not (keyf.exists() and certf.exists()):
+            if args.verbose:
+                print("Generating self-signed certificate for localhost...")
+            generate_self_signed_cert(certf, keyf)
 
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(certf, keyf)
-    httpd.socket = context.wrap_socket(
-        httpd.socket,
-        server_side=True,
-    )
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certf, keyf)
+        httpd.socket = context.wrap_socket(
+            httpd.socket,
+            server_side=True,
+        )
 
     # If we are running over ssh then the browser on the local machine
     # would never be able access localhost:7598 (unless using SSH tunnel with --server flag)
