@@ -2,3 +2,6 @@ __pycache__
 refresh_token
 imap_smtp_refresh_token
 imap_smtp_access_token
+.venv/
+_DS_Store
+.vscode/
