@@ -17,11 +17,10 @@ ClientSecret = ""
 # Scopes requested from Microsoft 365.
 # - IMAP.AccessAsUser.All : IMAP access
 # - SMTP.Send             : sending mail via SMTP
-# - offline_access        : allows us to receive a refresh token
+# note that scopes like "offline_access" are explicitly not defined here/
 Scopes = [
     "https://outlook.office.com/IMAP.AccessAsUser.All",
     "https://outlook.office.com/SMTP.Send",
-    "offline_access",
 ]
 
 # Files used to store tokens created during OAuth flow by the scripts.
