@@ -1,28 +1,45 @@
 from msal import ConfidentialClientApplication, SerializableTokenCache
 import config
 import sys
+from pathlib import Path
 
+# Set to False if you only want to refresh the token files without printing
+# the access token (e.g. for periodic refresh jobs).
 print_access_token = True
 
-# We use the cache to extract the refresh token
 cache = SerializableTokenCache()
-app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret, token_cache=cache, authority=config.Authority)
 
+app = ConfidentialClientApplication(
+    client_id=config.ClientId,
+    client_credential=config.ClientSecret or None,
+    token_cache=cache,
+    authority=config.Authority,
+)
 
-old_refresh_token = open(config.RefreshTokenFileName,'r').read()
+refresh_path = Path(config.RefreshTokenFileName)
+if not refresh_path.exists():
+    sys.exit(
+        f"Refresh token file {config.RefreshTokenFileName} not found. "
+        "Run get_token.py first."
+    )
 
-token = app.acquire_token_by_refresh_token(old_refresh_token,config.Scopes)
+old_refresh_token = refresh_path.read_text().strip()
 
-if 'error' in token:
+# Request a new access token (and usually a new refresh token).
+token = app.acquire_token_by_refresh_token(old_refresh_token, scopes=config.Scopes)
+
+if "error" in token:
     print(token)
     sys.exit("Failed to get access token")
 
-# you're supposed to save the old refresh token each time
-with open(config.RefreshTokenFileName, 'w') as f:
-    #f.write(cache.find('RefreshToken')[0]['secret'])
-    f.write(token['refresh_token'])
+# Save the new refresh token if MSAL returned one; otherwise keep the old one.
+new_refresh_token = token.get("refresh_token", old_refresh_token)
+refresh_path.write_text(new_refresh_token)
 
-with open(config.AccessTokenFileName, 'w') as f:
-    f.write(token['access_token'])
-    if print_access_token:
-        print(token['access_token'])
+with open(config.AccessTokenFileName, "w") as f:
+    f.write(token["access_token"])
+
+if print_access_token:
+    # Printing the access token allows SMTP clients like msmtp to use this
+    # script as password source (passwordeval).
+    print(token["access_token"])
