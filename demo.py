@@ -1,3 +1,11 @@
+"""
+Interactive demo for Microsoft 365 IMAP/SMTP using OAuth 2.0 authentication.
+
+This script demonstrates reading inbox messages and sending emails via XOAUTH2.
+Before running this, use `get_token.py` to obtain the initial refresh token.
+This script automatically refreshes the access token on each run using the
+stored refresh token, so no manual token management is needed.
+"""
 import base64
 import imaplib
 import smtplib
@@ -28,6 +36,8 @@ def _get_app():
 #Get a fresh access token using the stored refresh token.
 def acquire_access_token() -> str:
     try:
+        # Note how we consume the refresh token from the file written 
+        # by get_token.py
         with open(config.RefreshTokenFileName, "r") as f:
             refresh_token = f.read().strip()
     except FileNotFoundError:
@@ -42,7 +52,7 @@ def acquire_access_token() -> str:
         print(token)
         sys.exit("Failed to get access token")
 
-    # Optionally update stored refresh token if a new one is returned.
+    # Optionally, update stored refresh token if a new one is returned.
     new_refresh_token = token.get("refresh_token", refresh_token)
     with open(config.RefreshTokenFileName, "w") as f:
         f.write(new_refresh_token)
@@ -99,7 +109,7 @@ def show_inbox(user_email: str, limit: int = 15) -> None:
             pass
         imap.logout()
 
-# Prompt for a simple message and send it via SMTP.
+# Prompt for a simple message and send it via SMTP on behalf of the user.
 def send_message(user_email: str) -> None:
     access_token = acquire_access_token()
     raw_auth = build_raw_xoauth2(user_email, access_token)
@@ -127,7 +137,7 @@ def send_message(user_email: str) -> None:
         smtp.starttls()
         smtp.ehlo()
 
-        # For SMTP we must send the *base64-encoded* auth string ourselves.
+        # For SMTP the *base64-encoded* auth string must be sent manually.
         xoauth2_b64 = base64.b64encode(raw_auth.encode("utf-8")).decode("ascii")
         code, resp = smtp.docmd("AUTH", "XOAUTH2 " + xoauth2_b64)
         if code != 235:
