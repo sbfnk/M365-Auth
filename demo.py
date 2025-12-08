@@ -33,7 +33,7 @@ def _get_app():
     )
 
 
-#Get a fresh access token using the stored refresh token.
+# Get a fresh access token using the stored refresh token.
 def acquire_access_token() -> str:
     try:
         # Note how we consume the refresh token from the file written 

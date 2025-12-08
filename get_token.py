@@ -35,7 +35,7 @@ except Exception:
     pass
 
 
-#Minimal HTTPS handler to capture the ?code=... from the redirect.
+# Minimal HTTPS handler to capture the ?code=... from the redirect.
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)

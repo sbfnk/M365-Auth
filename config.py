@@ -11,13 +11,13 @@
 
 ClientId = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
 
-# Only set a value if you registered an own Azure AD app with a client secret.
+# Only set a value if you registered your own Azure AD app with a client secret.
 ClientSecret = ""
 
 # Scopes requested from Microsoft 365.
 # - IMAP.AccessAsUser.All : IMAP access
 # - SMTP.Send             : sending mail via SMTP
-# note that scopes like "offline_access" are explicitly not defined here/
+# note that scopes like "offline_access" are explicitly not defined here.
 Scopes = [
     "https://outlook.office.com/IMAP.AccessAsUser.All",
     "https://outlook.office.com/SMTP.Send",

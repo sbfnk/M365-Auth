@@ -28,7 +28,7 @@ Your organisation’s admin must once approve this app for your tenant, granting
 - `SMTP.Send`
 - `offline_access`
 
-Note that there isn't a hard connection between for instance Thunderbird's Azure Client ID, meaning that you could use the same ID for other tools as well (offlineimap3, msmtp, scripts).
+Note that there isn't a hard connection to, for instance, Thunderbird's Azure Client ID, meaning that you could use the same ID for other tools as well (offlineimap3, msmtp, scripts).
 
 ### 2. Use your own Azure AD app registration
 If you manage Azure AD yourself, you can create a dedicated app registration and grant it the same permissions.
