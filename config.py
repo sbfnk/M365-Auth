@@ -31,3 +31,8 @@ AccessTokenFileName = "imap_smtp_access_token"
 # Authority = "https://login.microsoftonline.com/<your-tenant-id>/"
 # If left as None, MSAL uses the "common" endpoint.
 Authority = None
+
+# Seconds allowed for each HTTP request to Microsoft. MSAL itself defaults to
+# no timeout, which lets a connection dropped mid-request block the script for
+# as long as the process lives. Raise this on slow or high-latency links.
+Timeout = 30

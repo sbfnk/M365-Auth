@@ -21,6 +21,7 @@ app = ConfidentialClientApplication(
     client_credential=config.ClientSecret or None,
     token_cache=cache,
     authority=config.Authority,
+    timeout=getattr(config, "Timeout", 30),
 )
 
 # Build the authorization URL for the browser-based login.
