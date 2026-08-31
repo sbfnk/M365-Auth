@@ -6,9 +6,9 @@ echo ""
 
 # Check refresh token
 echo "1. Checking keychain for refresh token..."
-if security find-generic-password -s "m365-imap-mail" -w > /dev/null 2>&1; then
+if security find-generic-password -s "m365auth-mail" -w > /dev/null 2>&1; then
     echo "   ✓ Refresh token found in keychain"
-    token=$(security find-generic-password -s "m365-imap-mail" -w 2>/dev/null)
+    token=$(security find-generic-password -s "m365auth-mail" -w 2>/dev/null)
     echo "   Token starts with: ${token:0:50}..."
 else
     echo "   ✗ No refresh token found"

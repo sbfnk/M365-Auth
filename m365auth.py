@@ -31,6 +31,28 @@ def http_timeout():
         return DEFAULT_HTTP_TIMEOUT
 
 
+def write_atomic(path, text):
+    """Replace path's contents in one step.
+
+    Opening for write truncates before any bytes land, so a process killed
+    mid-write leaves an empty file that still passes an existence check. The
+    caller would then read a blank refresh token and need interactive re-auth.
+    """
+    import tempfile
+    directory = os.path.dirname(os.path.abspath(path)) or '.'
+    fd, tmp = tempfile.mkstemp(dir=directory)
+    try:
+        with os.fdopen(fd, 'w') as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        os.unlink(tmp)
+        raise
+
+
 
 
 def load_config(profile='mail'):
@@ -188,7 +210,7 @@ def save_refresh_token(refresh_token, profile='mail'):
         cache_dir = Path(user_cache_dir("m365auth"))
         cache_dir.mkdir(parents=True, exist_ok=True)
         token_file = cache_dir / f"refresh_token_{profile}"
-        token_file.write_text(refresh_token)
+        write_atomic(token_file, refresh_token)
         token_file.chmod(0o600)
 
 
@@ -221,8 +243,10 @@ def get_access_token(profile='mail'):
     if 'error' in token:
         raise ValueError(f"Failed to get access token: {token}")
 
-    # Update refresh token (tokens rotate on each use)
-    save_refresh_token(token['refresh_token'], profile)
+    # Microsoft usually rotates the refresh token, though the grant leaves it
+    # optional. Keep the existing one when no replacement comes back, so a
+    # perfectly good access token is not thrown away.
+    save_refresh_token(token.get('refresh_token', old_refresh_token), profile)
 
     return token['access_token']
 
