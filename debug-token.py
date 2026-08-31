@@ -32,8 +32,10 @@ def main():
         from pathlib import Path
         from platformdirs import user_config_dir
 
-        # Load config
-        sys.path.insert(0, str(Path.home() / ".config" / "m365auth"))
+        # Load the same config the library uses. platformdirs resolves this
+        # per platform, so hardcoding ~/.config silently picks up the bundled
+        # defaults on macOS and authenticates as the wrong client.
+        sys.path.insert(0, user_config_dir("m365auth"))
         try:
             import config
         except ImportError:
@@ -42,8 +44,8 @@ def main():
 
         # Get token
         print("Fetching access token...")
-        keychain_service = "m365-imap-mail"
-        old_refresh_token = keyring.get_password(keychain_service, "default")
+        keychain_service = "m365auth-mail"
+        old_refresh_token = keyring.get_password(keychain_service, "refresh_token")
 
         if not old_refresh_token:
             print("ERROR: No refresh token found in keychain", file=sys.stderr)
@@ -52,14 +54,16 @@ def main():
         # Try to get fresh access token
         cache = SerializableTokenCache()
         if not config.ClientSecret or config.ClientSecret == "":
-            app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority)
+            app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority,
+                                          timeout=30)
         else:
             from msal import ConfidentialClientApplication
             app = ConfidentialClientApplication(
                 config.ClientId,
                 client_credential=config.ClientSecret,
                 token_cache=cache,
-                authority=config.Authority
+                authority=config.Authority,
+                timeout=30,
             )
 
         scopes = config.Profiles.get('mail', {}).get('scopes', config.Scopes)
