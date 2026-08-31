@@ -113,6 +113,7 @@ def load_config(profile='mail'):
 
         # Create config directory and write config
         config_dir.mkdir(parents=True, exist_ok=True)
+        timeout = DEFAULT_HTTP_TIMEOUT
         config_content = f"""# M365 OAuth2 Configuration
 # This file was auto-generated. You can edit it to customize settings.
 
@@ -143,6 +144,12 @@ Profiles = {{
 
 # Default scopes (for backwards compatibility)
 Scopes = Profiles['mail']['scopes']
+
+# Seconds allowed for each HTTP request to Microsoft. MSAL itself defaults to
+# no timeout, which lets a connection dropped mid-request block for as long as
+# the process lives. Raise this on slow or high-latency links. Set
+# M365AUTH_TIMEOUT in the environment to override it for a single run.
+Timeout = {timeout}
 """
         config_file.write_text(config_content)
         print()
