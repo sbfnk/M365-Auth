@@ -16,6 +16,21 @@ import keyring
 from msal import ConfidentialClientApplication, PublicClientApplication, SerializableTokenCache
 
 
+# MSAL builds its requests session with timeout=None, so a connection dropped
+# mid-request leaves a token call blocked on a socket read for as long as the
+# process lives. mbsync runs this as a PassCmd and waits on it, so a hang here
+# wedges an entire mail sync until someone notices.
+DEFAULT_HTTP_TIMEOUT = 30
+
+
+def http_timeout():
+    """Seconds allowed per MSAL HTTP request, raisable for slow links."""
+    try:
+        return float(os.environ.get('M365AUTH_TIMEOUT', DEFAULT_HTTP_TIMEOUT))
+    except ValueError:
+        return DEFAULT_HTTP_TIMEOUT
+
+
 
 
 def load_config(profile='mail'):
@@ -190,13 +205,15 @@ def get_access_token(profile='mail'):
 
     # Use PublicClientApplication if no client secret, otherwise ConfidentialClientApplication
     if not config.ClientSecret or config.ClientSecret == "":
-        app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority)
+        app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority,
+                                      timeout=http_timeout())
     else:
         app = ConfidentialClientApplication(
             config.ClientId,
             client_credential=config.ClientSecret,
             token_cache=cache,
-            authority=config.Authority
+            authority=config.Authority,
+            timeout=http_timeout()
         )
 
     token = app.acquire_token_by_refresh_token(old_refresh_token, scopes)
@@ -300,10 +317,12 @@ def main_get_token():
 
     # Use PublicClientApplication if no client secret, otherwise ConfidentialClientApplication
     if not config.ClientSecret or config.ClientSecret == "":
-        app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority)
+        app = PublicClientApplication(config.ClientId, token_cache=cache, authority=config.Authority,
+                                      timeout=http_timeout())
     else:
         app = ConfidentialClientApplication(config.ClientId, client_credential=config.ClientSecret,
-                                            token_cache=cache, authority=config.Authority)
+                                            token_cache=cache, authority=config.Authority,
+                                            timeout=http_timeout())
 
     url = app.get_authorization_request_url(scopes, redirect_uri=redirect_uri)
 
