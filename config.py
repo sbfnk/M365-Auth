@@ -36,3 +36,9 @@ Profiles = {
 # Default profile if --profile not specified (for backward compatibility)
 # You can also set Scopes directly instead of using profiles
 Scopes = Profiles['mail']['scopes']
+
+# Seconds allowed for each HTTP request to Microsoft. MSAL itself defaults to
+# no timeout, which lets a connection dropped mid-request block for as long as
+# the process lives. Raise this on slow or high-latency links. Set
+# M365AUTH_TIMEOUT in the environment to override it for a single run.
+Timeout = 30
