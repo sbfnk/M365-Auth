@@ -151,7 +151,7 @@ Scopes = Profiles['mail']['scopes']
 # M365AUTH_TIMEOUT in the environment to override it for a single run.
 Timeout = {timeout}
 """
-        config_file.write_text(config_content)
+        write_atomic(config_file, config_content)
         print()
         print(f"✓ Configuration saved to: {config_file}")
         print()
