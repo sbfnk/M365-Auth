@@ -1,5 +1,6 @@
 from msal import ConfidentialClientApplication, SerializableTokenCache
 import config
+from util import write_atomic
 import http.server
 import os
 import sys
@@ -95,10 +96,8 @@ if "error" in token:
     print(token)
     sys.exit("Failed to get access token")
 
-with open(config.RefreshTokenFileName, "w") as f:
-    print(f"Refresh token acquired, writing to file {config.RefreshTokenFileName}")
-    f.write(token["refresh_token"])
+print(f"Refresh token acquired, writing to file {config.RefreshTokenFileName}")
+write_atomic(config.RefreshTokenFileName, token["refresh_token"])
 
-with open(config.AccessTokenFileName, "w") as f:
-    print(f"Access token acquired, writing to file {config.AccessTokenFileName}")
-    f.write(token["access_token"])
+print(f"Access token acquired, writing to file {config.AccessTokenFileName}")
+write_atomic(config.AccessTokenFileName, token["access_token"])

@@ -15,6 +15,7 @@ from email.message import EmailMessage
 from msal import ConfidentialClientApplication, SerializableTokenCache
 
 import config
+from util import write_atomic
 
 
 IMAP_HOST = "outlook.office365.com"
@@ -54,12 +55,10 @@ def acquire_access_token() -> str:
 
     # Optionally, update stored refresh token if a new one is returned.
     new_refresh_token = token.get("refresh_token", refresh_token)
-    with open(config.RefreshTokenFileName, "w") as f:
-        f.write(new_refresh_token)
+    write_atomic(config.RefreshTokenFileName, new_refresh_token)
 
     # Keep the latest access token around (optional).
-    with open(config.AccessTokenFileName, "w") as f:
-        f.write(token["access_token"])
+    write_atomic(config.AccessTokenFileName, token["access_token"])
 
     return token["access_token"]
 
