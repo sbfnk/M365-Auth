@@ -224,7 +224,6 @@ def save_refresh_token(refresh_token, profile='mail'):
         cache_dir.mkdir(parents=True, exist_ok=True)
         token_file = cache_dir / f"refresh_token_{profile}"
         write_atomic(token_file, refresh_token)
-        token_file.chmod(0o600)
 
 
 def get_access_token(profile='mail'):
@@ -497,8 +496,7 @@ def main_get_token():
         if args.verbose:
             print(f'⚠️  Could not store in keychain ({e}), falling back to file storage')
         token_file = cache_dir / f"refresh_token_{args.profile}"
-        token_file.write_text(token['refresh_token'])
-        token_file.chmod(0o600)  # Read/write for owner only
+        write_atomic(token_file, token['refresh_token'])
         if args.verbose:
             print(f'Refresh token stored in {token_file} (mode 600)')
         else:
