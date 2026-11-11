@@ -4,6 +4,9 @@ Shared code for getting and refreshing tokens
 """
 import sys
 import os
+import datetime
+import shlex
+import subprocess
 import argparse
 import threading
 import urllib.parse
@@ -211,19 +214,49 @@ def get_refresh_token(profile='mail'):
     return refresh_token
 
 
-def save_refresh_token(refresh_token, profile='mail'):
+def save_refresh_token(refresh_token, profile='mail', use_keychain=True):
     """Save refresh token to keychain or file"""
     keychain_service = f"m365auth-{profile}"
 
     # Try keychain first, fall back to file if it fails
+    if use_keychain:
+        try:
+            keyring.set_password(keychain_service, "refresh_token", refresh_token)
+            return
+        except Exception:
+            pass
+    cache_dir = Path(user_cache_dir("m365auth"))
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    token_file = cache_dir / f"refresh_token_{profile}"
+    write_atomic(token_file, refresh_token)
+
+
+def signin_record_path(profile):
+    return Path(user_cache_dir("m365auth")) / f"signed_in_{profile}"
+
+
+def record_signin(profile, when=None):
+    """Remember when the interactive sign-in behind a profile's token happened.
+
+    Conditional access can cap how long a sign-in stays valid however often its
+    refresh token is used, so the next interactive login falls due a fixed time
+    after the sign-in, not after the latest refresh.
+    """
+    path = signin_record_path(profile)
+    if when is None:
+        if path.exists():
+            path.unlink()
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_atomic(path, when.isoformat())
+
+
+def signed_in_at(profile):
+    """Time of the sign-in behind the profile's refresh token, or None if unknown."""
     try:
-        keyring.set_password(keychain_service, "refresh_token", refresh_token)
-    except Exception:
-        # Fall back to file storage
-        cache_dir = Path(user_cache_dir("m365auth"))
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        token_file = cache_dir / f"refresh_token_{profile}"
-        write_atomic(token_file, refresh_token)
+        return datetime.datetime.fromisoformat(signin_record_path(profile).read_text().strip())
+    except (FileNotFoundError, ValueError):
+        return None
 
 
 def get_access_token(profile='mail'):
@@ -504,6 +537,8 @@ def main_get_token():
             print(f'  Refresh token stored in {token_file}')
             print(f'  Profile: {args.profile}')
 
+    record_signin(args.profile, datetime.datetime.now(datetime.timezone.utc))
+
     # Print access token only in verbose mode
     if args.verbose:
         print(f'\nAccess token (valid for ~1 hour):\n{token["access_token"]}')
@@ -537,3 +572,62 @@ def main_get_refresh_token():
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def main_set_refresh_token():
+    """Entry point for set-refresh-token command"""
+    parser = argparse.ArgumentParser(
+        description='Store a refresh token read from standard input, e.g. one signed in on another machine')
+    parser.add_argument('--profile', type=str, default='mail',
+                        help='Profile to store the token for (default: mail)')
+    parser.add_argument('--signed-in', type=str,
+                        help='ISO time of the sign-in that issued the token; left unrecorded if omitted')
+    parser.add_argument('--file', action='store_true',
+                        help='Store in the cache file instead of the keychain')
+    args = parser.parse_args()
+
+    refresh_token = sys.stdin.read().strip()
+    if not refresh_token:
+        sys.exit("Error: no refresh token on standard input")
+    signed_in = None
+    if args.signed_in:
+        try:
+            signed_in = datetime.datetime.fromisoformat(args.signed_in)
+        except ValueError:
+            sys.exit(f"Error: --signed-in is not an ISO time: {args.signed_in}")
+
+    save_refresh_token(refresh_token, args.profile, use_keychain=not args.file)
+    record_signin(args.profile, signed_in)
+    print(f"✓ Refresh token stored for profile {args.profile}")
+
+
+def main_push_token():
+    """Entry point for push-token command"""
+    parser = argparse.ArgumentParser(
+        description="Copy this machine's refresh token and sign-in time to another machine over ssh")
+    parser.add_argument('host', help='ssh destination')
+    parser.add_argument('--profile', type=str, default='mail',
+                        help='Profile to copy (default: mail)')
+    parser.add_argument('--file', action='store_true',
+                        help='Store in the cache file on the remote machine instead of its keychain')
+    parser.add_argument('--remote-command', type=str, default='~/.local/bin/set-refresh-token',
+                        help='set-refresh-token on the remote machine (default: %(default)s)')
+    args = parser.parse_args()
+
+    try:
+        refresh_token = get_refresh_token(args.profile)
+    except ValueError as e:
+        sys.exit(f"Error: {e}")
+
+    remote = [args.remote_command, '--profile', shlex.quote(args.profile)]
+    signed_in = signed_in_at(args.profile)
+    if signed_in is not None:
+        remote += ['--signed-in', shlex.quote(signed_in.isoformat())]
+    if args.file:
+        remote.append('--file')
+
+    result = subprocess.run(['ssh', args.host, ' '.join(remote)], input=refresh_token, text=True)
+    if result.returncode != 0:
+        sys.exit(f"Error: storing the token on {args.host} failed")
+    if signed_in is None:
+        print("Note: no sign-in time recorded here, so the remote machine cannot warn before it expires")
