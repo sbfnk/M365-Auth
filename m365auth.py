@@ -225,6 +225,13 @@ def save_refresh_token(refresh_token, profile='mail', use_keychain=True):
             return
         except Exception:
             pass
+    else:
+        # get_refresh_token reads the keychain first, so an older token left
+        # there would shadow the one written to the file.
+        try:
+            keyring.delete_password(keychain_service, "refresh_token")
+        except Exception:
+            pass
     cache_dir = Path(user_cache_dir("m365auth"))
     cache_dir.mkdir(parents=True, exist_ok=True)
     token_file = cache_dir / f"refresh_token_{profile}"
