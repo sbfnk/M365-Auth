@@ -57,10 +57,26 @@ pip install -e .
 
 ### Commands installed
 
-All installation methods create three commands:
+All installation methods create these commands:
 - `get-token` - Interactive OAuth2 flow to obtain tokens
 - `refresh-token` - Refresh and print access tokens
 - `get-refresh-token` - Get refresh token from keychain (for OfflineIMAP)
+- `set-refresh-token` - Store a refresh token read from standard input
+- `push-token` - Copy a refresh token to another machine over ssh
+
+### Renewing sign-ins on a headless machine
+
+Organisations can limit how long a sign-in lasts through a conditional access sign-in frequency policy, for example 60 days, however often the refresh token is used. Once that time has passed, refreshing fails with `AADSTS70043` and only a new interactive login helps. `get-token` records when each sign-in happened, so tools such as [calblock](https://github.com/sbfnk/calblock) can warn before it runs out.
+
+A machine without a browser, such as a server running scheduled jobs, can take its token from one that has one. Sign in locally, then copy the token and its sign-in time across:
+
+```bash
+get-token --profile calendar
+push-token --profile calendar myserver          # store in the remote keychain
+push-token --profile calendar myserver --file   # or in the remote cache file
+```
+
+Use `--file` when the remote jobs read the token from the cache file, for example because they run with `PYTHON_KEYRING_BACKEND=keyring.backends.fail.Keyring`. The remote machine needs this version of m365auth installed, with `set-refresh-token` in `~/.local/bin` or named through `--remote-command`.
 
 ## Quick Start
 
