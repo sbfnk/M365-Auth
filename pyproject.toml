@@ -7,7 +7,7 @@ name = "m365auth"
 version = "0.3.0"
 description = "OAuth2 authentication for Microsoft 365 services (IMAP/SMTP/Calendar/etc)"
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.7"
 dependencies = [
     "msal",
     "platformdirs",
