@@ -258,10 +258,18 @@ def record_signin(profile, when=None):
     write_atomic(path, when.isoformat())
 
 
+def parse_signin_time(text):
+    """Parse an ISO time, reading one without a timezone as UTC so it compares with aware times."""
+    when = datetime.datetime.fromisoformat(text)
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=datetime.timezone.utc)
+    return when
+
+
 def signed_in_at(profile):
     """Time of the sign-in behind the profile's refresh token, or None if unknown."""
     try:
-        return datetime.datetime.fromisoformat(signin_record_path(profile).read_text().strip())
+        return parse_signin_time(signin_record_path(profile).read_text().strip())
     except (FileNotFoundError, ValueError):
         return None
 
@@ -588,7 +596,7 @@ def main_set_refresh_token():
     parser.add_argument('--profile', type=str, default='mail',
                         help='Profile to store the token for (default: mail)')
     parser.add_argument('--signed-in', type=str,
-                        help='ISO time of the sign-in that issued the token; left unrecorded if omitted')
+                        help='ISO time of the sign-in that issued the token, UTC unless it says otherwise; left unrecorded if omitted')
     parser.add_argument('--file', action='store_true',
                         help='Store in the cache file instead of the keychain')
     args = parser.parse_args()
@@ -599,7 +607,7 @@ def main_set_refresh_token():
     signed_in = None
     if args.signed_in:
         try:
-            signed_in = datetime.datetime.fromisoformat(args.signed_in)
+            signed_in = parse_signin_time(args.signed_in)
         except ValueError:
             sys.exit(f"Error: --signed-in is not an ISO time: {args.signed_in}")
 
