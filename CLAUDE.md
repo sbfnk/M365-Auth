@@ -182,5 +182,5 @@ cp get-token refresh-token get-refresh-token ~/.local/bin/  # or /usr/local/bin
 
 ## Python Environment
 
-- Compatible with Python 3.6+
+- Compatible with Python 3.7+
 - Scripts use `#!/usr/bin/env python3` shebang for portability
